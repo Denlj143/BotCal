@@ -2,6 +2,7 @@ import logging
 import re
 import sqlite3
 import os
+import asyncio
 from datetime import date
 
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
@@ -502,5 +503,5 @@ def main():
 
 
 if __name__ == "__main__":
+    asyncio.run(main())
 
-    main()
