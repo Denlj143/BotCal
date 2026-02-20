@@ -449,8 +449,8 @@ async def route_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # MAIN
 # -----------------------
 def main():
-    if BOT_TOKEN == "PASTE_YOUR_TOKEN_HERE":
-        raise RuntimeError("Set BOT_TOKEN from BotFather in the code.")
+    if not BOT_TOKEN:
+        raise RuntimeError("BOT_TOKEN is missing. Set it in environment variables.")
 
     db_init_and_migrate()
 
@@ -498,8 +498,9 @@ def main():
     app.add_error_handler(on_error)
 
     print("Bot is running...")
-    app.run_polling(close_loop=False)
+    app.run_polling()
 
 
 if __name__ == "__main__":
+
     main()
