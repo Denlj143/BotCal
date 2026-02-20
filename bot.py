@@ -2,7 +2,6 @@ import logging
 import re
 import sqlite3
 import os
-import asyncio
 from datetime import date
 
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
@@ -449,14 +448,48 @@ async def route_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # -----------------------
 # MAIN
 # -----------------------
-async def main():
-    if not BOT_TOKEN:
-        raise RuntimeError("BOT_TOKEN is missing.")
+def main():
+    if BOT_TOKEN == "PASTE_YOUR_TOKEN_HERE":
+        raise RuntimeError("Set BOT_TOKEN from BotFather in the code.")
 
     db_init_and_migrate()
 
     app = Application.builder().token(BOT_TOKEN).build()
 
+    conv_grams = ConversationHandler(
+        entry_points=[
+            CommandHandler("add_grams", grams_start),
+            MessageHandler(filters.Regex(rf"^{re.escape(BTN_ADD_GRAMS)}$"), grams_start),
+        ],
+        states={
+            G_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, grams_name)],
+            G_GRAMS: [MessageHandler(filters.TEXT & ~filters.COMMAND, grams_grams)],
+            G_KCAL100: [MessageHandler(filters.TEXT & ~filters.COMMAND, grams_kcal100)],
+        },
+        fallbacks=[
+            CommandHandler("cancel", cancel),
+            MessageHandler(filters.Regex(rf"^{re.escape(BTN_CANCEL)}$"), cancel),
+        ],
+        allow_reentry=True,
+    )
+
+    conv_kcal = ConversationHandler(
+        entry_points=[
+            CommandHandler("add_kcal", kcal_start),
+            MessageHandler(filters.Regex(rf"^{re.escape(BTN_ADD_KCAL)}$"), kcal_start),
+        ],
+        states={
+            K_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, kcal_name)],
+            K_KCAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, kcal_value)],
+        },
+        fallbacks=[
+            CommandHandler("cancel", cancel),
+            MessageHandler(filters.Regex(rf"^{re.escape(BTN_CANCEL)}$"), cancel),
+        ],
+        allow_reentry=True,
+    )
+
+    # IMPORTANT ORDER
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(conv_grams)
@@ -465,10 +498,8 @@ async def main():
     app.add_error_handler(on_error)
 
     print("Bot is running...")
-    await app.run_polling()
+    app.run_polling(close_loop=False)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
-
-
+    main()
