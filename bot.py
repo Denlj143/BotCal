@@ -10,20 +10,16 @@ from telegram.ext import (
     ConversationHandler, MessageHandler, filters
 )
 
-# -----------------------
+# =======================
 # SETTINGS
-# -----------------------
-BOT_TOKEN = os.getenv("BOT_TOKEN")  # set in hosting env variables
+# =======================
+BOT_TOKEN = os.getenv("BOT_TOKEN")  # set in hosting env vars
 DB_PATH = "calories.db"
 
-# States: Add (grams)
-G_NAME, G_GRAMS, G_KCAL100 = range(3)
-
-# States: Add (kcal)
-K_NAME, K_KCAL = range(3, 5)
-
-# States: pick date
-D_DATE = 5
+# Conversation states
+G_NAME, G_GRAMS, G_KCAL100 = range(3)     # Add (grams)
+K_NAME, K_KCAL = range(3, 5)              # Add (kcal)
+D_DATE = 5                                # Choose date
 
 # Buttons
 BTN_ADD_GRAMS = "Add (grams)"
@@ -32,7 +28,6 @@ BTN_TODAY_LIST = "Today list"
 BTN_TOTAL = "Total"
 BTN_RESET = "Reset"
 BTN_CANCEL = "Cancel"
-
 BTN_YESTERDAY = "Yesterday"
 BTN_WEEK = "Last 7 days"
 BTN_PICK_DATE = "Choose date"
@@ -42,19 +37,18 @@ BUTTONS = {
     BTN_YESTERDAY, BTN_WEEK, BTN_PICK_DATE
 }
 
-# -----------------------
+# =======================
 # LOGGING
-# -----------------------
+# =======================
 logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-
-# -----------------------
+# =======================
 # DB
-# -----------------------
+# =======================
 def db_connect():
     return sqlite3.connect(DB_PATH)
 
@@ -67,12 +61,11 @@ def get_columns(con: sqlite3.Connection, table: str) -> set[str]:
 
 def db_init_and_migrate():
     """
-    Keeps all days (no auto-delete). Creates/migrates schema safely.
+    Keep all days (no auto-delete). Create/migrate schema safely.
     """
     with db_connect() as con:
         cur = con.cursor()
 
-        # entries
         cur.execute("""
             CREATE TABLE IF NOT EXISTS entries (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,7 +82,6 @@ def db_init_and_migrate():
 
         cols = get_columns(con, "entries")
 
-        # Add missing columns (for older DBs)
         if "grams" not in cols:
             cur.execute("ALTER TABLE entries ADD COLUMN grams REAL")
         if "kcal100" not in cols:
@@ -153,9 +145,9 @@ def clear_day(user_id: int, day: str):
         con.commit()
 
 
-# -----------------------
+# =======================
 # UI
-# -----------------------
+# =======================
 def main_keyboard():
     return ReplyKeyboardMarkup(
         [
@@ -169,13 +161,10 @@ def main_keyboard():
     )
 
 
-# -----------------------
+# =======================
 # Helpers
-# -----------------------
+# =======================
 def extract_number(text: str) -> float:
-    """
-    Extract first number from text, supports comma/dot decimals, ignores hidden spaces.
-    """
     t = text.replace("\u00A0", " ").strip()
     m = re.search(r"\d+(?:[.,]\d+)?", t)
     if not m:
@@ -190,7 +179,6 @@ def is_button_text(text: str) -> bool:
 def format_day_report(day: str, rows, total: float) -> str:
     if not rows:
         return f"No entries for {day}\nTotal: 0.0"
-
     lines = [f"Entries for {day}:"]
     for i, (name, grams, kcal100, kcal, mode) in enumerate(rows, start=1):
         if mode == "grams":
@@ -201,14 +189,11 @@ def format_day_report(day: str, rows, total: float) -> str:
     return "\n".join(lines)
 
 
-# -----------------------
+# =======================
 # BASIC COMMANDS
-# -----------------------
+# =======================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Calorie bot is ready.",
-        reply_markup=main_keyboard()
-    )
+    await update.message.reply_text("Calorie bot is ready.", reply_markup=main_keyboard())
 
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -219,7 +204,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Today list  - list for today\n"
         "Total       - today's total\n"
         "Yesterday   - yesterday's total\n"
-        "Last 7 days - sum for last 7 days\n"
+        "Last 7 days - each day + grand total\n"
         "Choose date - pick any date YYYY-MM-DD\n"
         "Reset       - clear today's entries\n"
         "Cancel      - cancel current input",
@@ -227,18 +212,18 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# -----------------------
+# =======================
 # CANCEL (works everywhere)
-# -----------------------
+# =======================
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.message.reply_text("Canceled.", reply_markup=main_keyboard())
     return ConversationHandler.END
 
 
-# -----------------------
+# =======================
 # FLOW 1: Add (grams)
-# -----------------------
+# =======================
 async def grams_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.message.reply_text("Enter product name:")
@@ -250,7 +235,6 @@ async def grams_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not name or is_button_text(name):
         await update.message.reply_text("Enter product name (text):")
         return G_NAME
-
     context.user_data["name"] = name
     await update.message.reply_text("Enter grams (e.g. 120):")
     return G_GRAMS
@@ -261,7 +245,6 @@ async def grams_grams(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_button_text(txt):
         await update.message.reply_text("Enter a number (grams) or press Cancel.")
         return G_GRAMS
-
     try:
         grams = extract_number(txt)
         if grams <= 0:
@@ -269,7 +252,6 @@ async def grams_grams(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except ValueError:
         await update.message.reply_text("Grams must be a number > 0. Example: 120")
         return G_GRAMS
-
     context.user_data["grams"] = grams
     await update.message.reply_text("Enter kcal per 100g (e.g. 89):")
     return G_KCAL100
@@ -280,7 +262,6 @@ async def grams_kcal100(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_button_text(txt):
         await update.message.reply_text("Enter a number (kcal per 100g) or press Cancel.")
         return G_KCAL100
-
     try:
         kcal100 = extract_number(txt)
         if kcal100 < 0:
@@ -291,7 +272,6 @@ async def grams_kcal100(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
     day = today_str()
-
     name = context.user_data["name"]
     grams = context.user_data["grams"]
 
@@ -305,9 +285,9 @@ async def grams_kcal100(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-# -----------------------
+# =======================
 # FLOW 2: Add (kcal)
-# -----------------------
+# =======================
 async def kcal_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.message.reply_text("Enter product name:")
@@ -319,7 +299,6 @@ async def kcal_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not name or is_button_text(name):
         await update.message.reply_text("Enter product name (text):")
         return K_NAME
-
     context.user_data["name"] = name
     await update.message.reply_text("Enter portion kcal (e.g. 250):")
     return K_KCAL
@@ -330,7 +309,6 @@ async def kcal_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_button_text(txt):
         await update.message.reply_text("Enter a number (portion kcal) or press Cancel.")
         return K_KCAL
-
     try:
         kcal = extract_number(txt)
         if kcal < 0:
@@ -341,8 +319,8 @@ async def kcal_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
     day = today_str()
-
     name = context.user_data["name"]
+
     add_entry_kcal(user_id, day, name, kcal)
     total = get_total(user_id, day)
 
@@ -353,9 +331,9 @@ async def kcal_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-# -----------------------
+# =======================
 # VIEW: today list / total / yesterday / week / pick date
-# -----------------------
+# =======================
 async def today_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     day = today_str()
@@ -378,15 +356,22 @@ async def yesterday_total(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Yesterday total ({day}): {total:.1f}", reply_markup=main_keyboard())
 
 
+# UPDATED: each day + grand total
 async def week_total(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    total = 0.0
     today = date.today()
-    for i in range(7):
-        day = (today - timedelta(days=i)).isoformat()
-        total += get_total(user_id, day)
 
-    await update.message.reply_text(f"Total for last 7 days: {total:.1f}", reply_markup=main_keyboard())
+    lines = ["Last 7 days:"]
+    grand_total = 0.0
+
+    for i in range(7):
+        d = (today - timedelta(days=i)).isoformat()
+        day_total = get_total(user_id, d)
+        grand_total += day_total
+        lines.append(f"{d}: {day_total:.1f}")
+
+    lines.append(f"\nTotal for 7 days: {grand_total:.1f}")
+    await update.message.reply_text("\n".join(lines), reply_markup=main_keyboard())
 
 
 async def reset_today(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -396,7 +381,9 @@ async def reset_today(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Cleared entries for today ({day}).", reply_markup=main_keyboard())
 
 
-# Pick date conversation
+# =======================
+# PICK DATE conversation
+# =======================
 async def pick_date_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.message.reply_text("Enter date in format YYYY-MM-DD:")
@@ -423,9 +410,9 @@ async def pick_date_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-# -----------------------
+# =======================
 # ERROR HANDLER
-# -----------------------
+# =======================
 async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.exception("Unhandled error", exc_info=context.error)
     try:
@@ -435,9 +422,10 @@ async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
         pass
 
 
-# -----------------------
-# MAIN (SYNC - avoids asyncio loop closing issues on Python 3.13+)
-# -----------------------
+# =======================
+# MAIN (NO asyncio.run wrapper!)
+# Fixes: "Cannot close a running event loop" on Python 3.13+
+# =======================
 def main():
     if not BOT_TOKEN:
         raise RuntimeError("BOT_TOKEN is missing. Set it in environment variables.")
@@ -445,6 +433,23 @@ def main():
     db_init_and_migrate()
 
     app = Application.builder().token(BOT_TOKEN).build()
+
+    # --- Conversations ---
+    conv_pick_date = ConversationHandler(
+        entry_points=[
+            # IMPORTANT: handle Choose date BEFORE other conversations
+            MessageHandler(filters.Regex(rf"^{re.escape(BTN_PICK_DATE)}$"), pick_date_start),
+            CommandHandler("date", pick_date_start),
+        ],
+        states={
+            D_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_date_value)],
+        },
+        fallbacks=[
+            CommandHandler("cancel", cancel),
+            MessageHandler(filters.Regex(rf"^{re.escape(BTN_CANCEL)}$"), cancel),
+        ],
+        allow_reentry=True,
+    )
 
     conv_grams = ConversationHandler(
         entry_points=[
@@ -479,44 +484,29 @@ def main():
         allow_reentry=True,
     )
 
-    conv_pick_date = ConversationHandler(
-        entry_points=[
-            MessageHandler(filters.Regex(rf"^{re.escape(BTN_PICK_DATE)}$"), pick_date_start),
-            CommandHandler("date", pick_date_start),
-        ],
-        states={
-            D_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_date_value)],
-        },
-        fallbacks=[
-            CommandHandler("cancel", cancel),
-            MessageHandler(filters.Regex(rf"^{re.escape(BTN_CANCEL)}$"), cancel),
-        ],
-        allow_reentry=True,
-    )
-
-    # Handlers order
+    # --- Handlers order ---
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_cmd))
 
-    # Cancel works everywhere
+    # Cancel always works
     app.add_handler(MessageHandler(filters.Regex(rf"^{re.escape(BTN_CANCEL)}$"), cancel))
 
-    # View / utility buttons
+    # Buttons (non-conversation)
     app.add_handler(MessageHandler(filters.Regex(rf"^{re.escape(BTN_TODAY_LIST)}$"), today_list))
     app.add_handler(MessageHandler(filters.Regex(rf"^{re.escape(BTN_TOTAL)}$"), total_today))
     app.add_handler(MessageHandler(filters.Regex(rf"^{re.escape(BTN_YESTERDAY)}$"), yesterday_total))
     app.add_handler(MessageHandler(filters.Regex(rf"^{re.escape(BTN_WEEK)}$"), week_total))
     app.add_handler(MessageHandler(filters.Regex(rf"^{re.escape(BTN_RESET)}$"), reset_today))
 
-    # Conversations
+    # Conversations (IMPORTANT: pick-date FIRST so it never becomes "Enter product")
+    app.add_handler(conv_pick_date)
     app.add_handler(conv_grams)
     app.add_handler(conv_kcal)
-    app.add_handler(conv_pick_date)
 
     app.add_error_handler(on_error)
 
     print("Bot is running...")
-    app.run_polling()  # DO NOT wrap in asyncio.run on Python 3.13+
+    app.run_polling()
 
 
 if __name__ == "__main__":
